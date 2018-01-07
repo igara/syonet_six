@@ -1,0 +1,54 @@
+version: '2'
+
+services:
+  rails:
+    build:
+      context: ./ruby
+      dockerfile: rails.Dockerfile
+    command: bundle exec rails s -p 3000 -b '0.0.0.0'
+    ports:
+      - 3000:3000
+    volumes:
+      - ./ruby/rails:/rails
+    environment:
+      RAILS_ENV: development
+      DB_DOMAIN: ${DB_DOMAIN}
+    links:
+      - mongodb:${DB_DOMAIN}
+
+  mongodb:
+    image: mongo:3.0.15
+    ports:
+      - 27017:27017
+    expose:
+      - 27017
+    command: --smallfiles --logpath=/dev/null
+    volumes:
+      - ./data/mongo:/data/db
+
+  https-portal:
+    image: steveltn/https-portal:1
+    ports:
+      - '80:80'
+      - '443:443'
+    links:
+      - rails:rails
+    restart: always
+    environment:
+      DOMAINS: 'syonet.work -> http://rails:3000'
+      STAGE: '${WWW_ENV}'
+      RESOLVER: '127.0.0.11 ipv6=off valid=60s'
+      DYNAMIC_UPSTREAM: 'true'
+      WEBSOCKET: 'true'
+      CLIENT_MAX_BODY_SIZE: 0
+    volumes:
+      - /data/ssl_certs:/var/lib/https-portal
+    networks:
+      - frontend
+      - backend
+
+networks:
+  frontend:
+    driver: 'bridge'
+  backend:
+    driver: 'bridge'
